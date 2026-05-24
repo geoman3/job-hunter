@@ -8,6 +8,7 @@ Built with:
 - **[Arcade](https://arcade.dev)** via **arcadepy** — Google Drive, Google Search, and Firecrawl
 
 Tools and resources used:
+
 - Cursor
 - The Arcade docs https://docs.arcade.dev
 - Agent templates https://github.com/ArcadeAI/agent-templates

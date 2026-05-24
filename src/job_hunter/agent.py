@@ -9,6 +9,7 @@ from google.adk.apps._configs import ResumabilityConfig
 from job_hunter.config import Settings, ensure_workspace
 from job_hunter.tools import ArcadeTool, build_filesystem_tools
 
+
 INSTRUCTION = """\
 # Agent Prompt — Job Hunting Assistant (ReAct)
 

@@ -73,7 +73,9 @@ async def fetch_arcade_tool_definitions(
     """Fetch tool definitions from Arcade by name and/or toolkit."""
     if not tools and not toolkits:
         if raise_on_empty:
-            raise ValueError("No tools or toolkits provided to retrieve tool definitions")
+            raise ValueError(
+                "No tools or toolkits provided to retrieve tool definitions"
+            )
         return []
 
     all_tools: list[ToolDefinition] = []

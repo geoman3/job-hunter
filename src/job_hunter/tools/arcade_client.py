@@ -228,5 +228,3 @@ async def authorize_arcade_tools(
             auth = await client.auth.status(id=auth.id, wait=45)
         if auth.status != "completed":
             raise AuthorizationError(auth)
-
-

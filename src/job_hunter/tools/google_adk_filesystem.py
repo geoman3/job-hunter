@@ -125,9 +125,7 @@ def build_filesystem_tools(workspace_dir: Path) -> list[FunctionTool]:
             }
 
         selected = lines[start - 1 : end]
-        numbered = "".join(
-            f"{start + i:6d}\t{line}" for i, line in enumerate(selected)
-        )
+        numbered = "".join(f"{start + i:6d}\t{line}" for i, line in enumerate(selected))
         result: dict = {
             "status": "ok",
             "content": _truncate(numbered),
@@ -158,10 +156,14 @@ def build_filesystem_tools(workspace_dir: Path) -> list[FunctionTool]:
         except OSError as exc:
             return {"status": "error", "error": str(exc)}
 
-        return {"status": "ok", "message": f"Wrote {path}", "bytes_written": len(content.encode("utf-8"))}
+        return {
+            "status": "ok",
+            "message": f"Wrote {path}",
+            "bytes_written": len(content.encode("utf-8")),
+        }
 
     return [
-        FunctionTool(list_files, require_confirmation=True),
-        FunctionTool(read_file, require_confirmation=True),
+        FunctionTool(list_files, require_confirmation=False),
+        FunctionTool(read_file, require_confirmation=False),
         FunctionTool(write_file, require_confirmation=True),
     ]

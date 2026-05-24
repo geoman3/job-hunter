@@ -39,9 +39,7 @@ class Settings:
                 os.environ.get("JOB_HUNTER_USER_ID", "job_hunter_user"),
             ),
             default_user_id=os.environ.get("JOB_HUNTER_USER_ID", "job_hunter_user"),
-            default_session_id=os.environ.get(
-                "JOB_HUNTER_SESSION_ID", "default"
-            ),
+            default_session_id=os.environ.get("JOB_HUNTER_SESSION_ID", "default"),
             model=os.environ.get("JOB_HUNTER_MODEL"),
         )
 

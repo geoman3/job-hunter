@@ -26,6 +26,7 @@ from job_hunter.config import Settings, ensure_workspace
 from job_hunter.tools import ArcadeTool, authorize_arcade_tools, get_arcade_tools
 from job_hunter.tools.arcade_utils import get_arcade_client
 
+
 def _format_event_text(event: Event) -> str | None:
     if not event.content or not event.content.parts:
         return None
@@ -71,9 +72,7 @@ class _AgentSpinner(AbstractContextManager["_AgentSpinner"]):
 
     def __enter__(self) -> _AgentSpinner:
         if self._enabled and self._console is not None:
-            self._status = self._console.status(
-                "[cyan]Thinking…[/]", spinner="dots"
-            )
+            self._status = self._console.status("[cyan]Thinking…[/]", spinner="dots")
             self._status.start()
         return self
 
@@ -129,9 +128,7 @@ async def _run_interactive(
                 client, user_id=settings.arcade_user_id
             )
             typer.echo("Authorizing Arcade toolkits (open any URLs shown)...")
-            await authorize_arcade_tools(
-                client, arcade_tools, settings.arcade_user_id
-            )
+            await authorize_arcade_tools(client, arcade_tools, settings.arcade_user_id)
         except ValueError:
             pass
 
@@ -224,13 +221,9 @@ def main(
     """Run the interactive job hunter agent."""
     if ctx.invoked_subcommand is not None:
         return
-    workspace_dir = (
-        directory.expanduser().resolve() if directory is not None else None
-    )
+    workspace_dir = directory.expanduser().resolve() if directory is not None else None
     settings = Settings.from_env(workspace_dir=workspace_dir)
-    asyncio.run(
-        _run_interactive(settings, user_id=user_id, session_id=session_id)
-    )
+    asyncio.run(_run_interactive(settings, user_id=user_id, session_id=session_id))
 
 
 def run_app() -> None:
