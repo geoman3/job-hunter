@@ -5,10 +5,13 @@ from __future__ import annotations
 import asyncio
 import os
 import sys
+from contextlib import AbstractContextManager
 from pathlib import Path
 from typing import Annotated, Optional
 
 import typer
+from rich.console import Console
+from rich.status import Status
 from google.adk.cli.cli import (
     _collect_pending_function_calls,
     _prompt_for_function_call,
@@ -36,6 +39,59 @@ def _use_color() -> bool:
     if os.environ.get("FORCE_COLOR"):
         return True
     return hasattr(sys.stdout, "isatty") and sys.stdout.isatty()
+
+
+def _use_spinner() -> bool:
+    if os.environ.get("NO_COLOR"):
+        return False
+    if os.environ.get("JOB_HUNTER_NO_SPINNER"):
+        return False
+    return hasattr(sys.stderr, "isatty") and sys.stderr.isatty()
+
+
+def _spinner_label_for_event(event: Event) -> str:
+    function_calls = event.get_function_calls()
+    if function_calls:
+        names = ", ".join(fc.name for fc in function_calls if fc.name)
+        return f"Calling {names}…" if names else "Calling tool…"
+    function_responses = event.get_function_responses()
+    if function_responses:
+        names = ", ".join(fr.name for fr in function_responses if fr.name)
+        return f"Processing {names}…" if names else "Processing tool result…"
+    return "Thinking…"
+
+
+class _AgentSpinner(AbstractContextManager["_AgentSpinner"]):
+    """TTY spinner shown while the agent is working between user-visible output."""
+
+    def __init__(self) -> None:
+        self._enabled = _use_spinner()
+        self._console = Console(stderr=True) if self._enabled else None
+        self._status: Status | None = None
+
+    def __enter__(self) -> _AgentSpinner:
+        if self._enabled and self._console is not None:
+            self._status = self._console.status(
+                "[cyan]Thinking…[/]", spinner="dots"
+            )
+            self._status.start()
+        return self
+
+    def __exit__(self, *exc_info: object) -> None:
+        if self._status is not None:
+            self._status.stop()
+
+    def update(self, event: Event) -> None:
+        if self._status is not None:
+            self._status.update(f"[cyan]{_spinner_label_for_event(event)}[/]")
+
+    def pause(self) -> None:
+        if self._status is not None:
+            self._status.stop()
+
+    def resume(self) -> None:
+        if self._status is not None:
+            self._status.start()
 
 
 def _echo_agent_message(author: str, text: str) -> None:
@@ -118,21 +174,25 @@ async def _run_interactive(
             collected_events = []
             invocation_id: str | None = None
 
-            async with Aclosing(
-                runner.run_async(
-                    user_id=user_id,
-                    session_id=session.id,
-                    new_message=next_message,
-                    invocation_id=resume_invocation_id,
-                )
-            ) as agen:
-                async for event in agen:
-                    collected_events.append(event)
-                    if getattr(event, "invocation_id", None):
-                        invocation_id = event.invocation_id
-                    text = _format_event_text(event)
-                    if text:
-                        _echo_agent_message(event.author or "agent", text)
+            with _AgentSpinner() as spinner:
+                async with Aclosing(
+                    runner.run_async(
+                        user_id=user_id,
+                        session_id=session.id,
+                        new_message=next_message,
+                        invocation_id=resume_invocation_id,
+                    )
+                ) as agen:
+                    async for event in agen:
+                        collected_events.append(event)
+                        if getattr(event, "invocation_id", None):
+                            invocation_id = event.invocation_id
+                        spinner.update(event)
+                        text = _format_event_text(event)
+                        if text:
+                            spinner.pause()
+                            _echo_agent_message(event.author or "agent", text)
+                            spinner.resume()
 
             next_message = None
             resume_invocation_id = None
