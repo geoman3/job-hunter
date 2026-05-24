@@ -1,4 +1,4 @@
-"""Arcade tool error types (from example/)."""
+"""Arcade tool error types"""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Arcade API helpers (from example/_utils.py)."""
+"""Arcade API helpers"""
 
 from __future__ import annotations
 

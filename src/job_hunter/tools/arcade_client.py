@@ -1,4 +1,4 @@
-"""Arcade tools for Google ADK, based on example/tools.py."""
+"""Arcade tools for Google ADK"""
 
 from __future__ import annotations
 
