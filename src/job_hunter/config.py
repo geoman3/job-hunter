@@ -24,10 +24,13 @@ class Settings:
     model: str | None
 
     @classmethod
-    def from_env(cls) -> Settings:
-        workspace = Path(
-            os.environ.get("JOB_HUNTER_WORKSPACE", "workspace")
-        ).expanduser()
+    def from_env(cls, *, workspace_dir: Path | str | None = None) -> Settings:
+        if workspace_dir is not None:
+            workspace = Path(workspace_dir).expanduser()
+        else:
+            workspace = Path(
+                os.environ.get("JOB_HUNTER_WORKSPACE", "workspace")
+            ).expanduser()
         return cls(
             app_name=os.environ.get("JOB_HUNTER_APP_NAME", "job_hunter"),
             workspace_dir=workspace.resolve(),

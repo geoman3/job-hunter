@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import os
-from typing import Optional
+import sys
+from pathlib import Path
+from typing import Annotated, Optional
 
 import typer
 from google.adk.cli.cli import (
@@ -26,6 +28,23 @@ def _format_event_text(event: Event) -> str | None:
         return None
     text_parts = [part.text for part in event.content.parts if part.text]
     return "".join(text_parts) if text_parts else None
+
+
+def _use_color() -> bool:
+    if os.environ.get("NO_COLOR"):
+        return False
+    if os.environ.get("FORCE_COLOR"):
+        return True
+    return hasattr(sys.stdout, "isatty") and sys.stdout.isatty()
+
+
+def _echo_agent_message(author: str, text: str) -> None:
+    """Print agent text in a subtle color (user input stays default)."""
+    if not _use_color():
+        typer.echo(f"\n[{author}]: {text}")
+        return
+    typer.secho(f"\n[{author}]: ", fg=typer.colors.CYAN, bold=True, nl=False)
+    typer.secho(text, fg=typer.colors.BRIGHT_BLUE)
 
 
 app = typer.Typer(
@@ -113,7 +132,7 @@ async def _run_interactive(
                         invocation_id = event.invocation_id
                     text = _format_event_text(event)
                     if text:
-                        typer.echo(f"\n[{event.author}]: {text}")
+                        _echo_agent_message(event.author or "agent", text)
 
             next_message = None
             resume_invocation_id = None
@@ -133,13 +152,22 @@ async def _run_interactive(
 @app.callback(invoke_without_command=True)
 def main(
     ctx: typer.Context,
+    directory: Annotated[
+        Optional[Path],
+        typer.Argument(
+            help="Workspace directory (e.g. . for the current folder).",
+        ),
+    ] = None,
     user_id: Optional[str] = typer.Option(None, help="ADK session user id."),
     session_id: Optional[str] = typer.Option(None, help="ADK session id."),
 ) -> None:
     """Run the interactive job hunter agent."""
     if ctx.invoked_subcommand is not None:
         return
-    settings = Settings.from_env()
+    workspace_dir = (
+        directory.expanduser().resolve() if directory is not None else None
+    )
+    settings = Settings.from_env(workspace_dir=workspace_dir)
     asyncio.run(
         _run_interactive(settings, user_id=user_id, session_id=session_id)
     )
