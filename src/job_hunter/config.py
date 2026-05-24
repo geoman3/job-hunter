@@ -1,0 +1,49 @@
+"""Application configuration loaded from environment variables."""
+
+from __future__ import annotations
+
+import os
+import warnings
+from dataclasses import dataclass
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+load_dotenv()
+
+
+@dataclass(frozen=True)
+class Settings:
+    """Runtime settings for the job hunter agent."""
+
+    app_name: str
+    workspace_dir: Path
+    arcade_user_id: str
+    default_user_id: str
+    default_session_id: str
+    model: str | None
+
+    @classmethod
+    def from_env(cls) -> Settings:
+        workspace = Path(
+            os.environ.get("JOB_HUNTER_WORKSPACE", "workspace")
+        ).expanduser()
+        return cls(
+            app_name=os.environ.get("JOB_HUNTER_APP_NAME", "job_hunter"),
+            workspace_dir=workspace.resolve(),
+            arcade_user_id=os.environ.get(
+                "ARCADE_USER_ID",
+                os.environ.get("JOB_HUNTER_USER_ID", "job_hunter_user"),
+            ),
+            default_user_id=os.environ.get("JOB_HUNTER_USER_ID", "job_hunter_user"),
+            default_session_id=os.environ.get(
+                "JOB_HUNTER_SESSION_ID", "default"
+            ),
+            model=os.environ.get("JOB_HUNTER_MODEL"),
+        )
+
+
+def ensure_workspace(settings: Settings) -> Path:
+    """Create the agent workspace directory if needed."""
+    settings.workspace_dir.mkdir(parents=True, exist_ok=True)
+    return settings.workspace_dir

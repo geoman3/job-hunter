@@ -121,24 +121,25 @@ class ArcadeTool(FunctionTool):
     async def run_async(
         self, *, args: dict[str, Any], tool_context: ToolContext
     ) -> Any:
-        """Run with full args dict (bypasses signature filtering) and HITL."""
-        if self._require_confirmation:
+        """Run with full args dict (FunctionTool filters **kwargs away)."""
+        require_confirmation = bool(self._require_confirmation)
+        if require_confirmation:
             if not tool_context.tool_confirmation:
                 tool_context.request_confirmation(
                     hint=(
-                        f"Approve Arcade tool {self.name} ({self._arcade_tool_name}) "
-                        f"with arguments: {args}"
+                        f"Please approve or reject the tool call {self.name}() "
+                        f"({self._arcade_tool_name}) with arguments: {args}"
                     ),
                 )
                 tool_context.actions.skip_summarization = True
                 return {
                     "error": (
-                        "This Arcade tool call requires user confirmation. "
-                        "Approve or reject to continue."
+                        "This tool call requires confirmation, please approve or"
+                        " reject."
                     )
                 }
             if not tool_context.tool_confirmation.confirmed:
-                return {"error": f"Arcade tool {self.name} was rejected by the user."}
+                return {"error": "This tool call is rejected."}
 
         return await _async_invoke_arcade_tool(
             tool_context=tool_context,
