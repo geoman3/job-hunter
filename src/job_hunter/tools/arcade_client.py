@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 import logging
 from typing import Any
 
@@ -74,6 +75,32 @@ async def _async_invoke_arcade_tool(
     return result.output.value
 
 
+def _arcade_signature(schema: ToolDefinition) -> inspect.Signature:
+    """Build an inspect.Signature mirroring the Arcade tool's declared inputs.
+
+    FunctionTool inspects ``func``'s signature to filter args before calling.
+    Our underlying ``func`` accepts ``**kwargs`` because Arcade params are
+    dynamic, so we attach a synthetic signature so the base class keeps each
+    real parameter name instead of dropping them all.
+    """
+    parameters = [
+        inspect.Parameter(
+            "tool_context",
+            inspect.Parameter.KEYWORD_ONLY,
+            annotation=ToolContext,
+        )
+    ]
+    for param in schema.input.parameters or []:
+        parameters.append(
+            inspect.Parameter(
+                param.name,
+                inspect.Parameter.KEYWORD_ONLY,
+                default=inspect.Parameter.empty if param.required else None,
+            )
+        )
+    return inspect.Signature(parameters=parameters)
+
+
 class ArcadeTool(FunctionTool):
     """ADK FunctionTool backed by a remote Arcade tool definition."""
 
@@ -103,6 +130,7 @@ class ArcadeTool(FunctionTool):
 
         func.__name__ = name.lower()
         func.__doc__ = description
+        func.__signature__ = _arcade_signature(schema)  # type: ignore[attr-defined]
 
         super().__init__(func, require_confirmation=require_confirmation)
 
@@ -116,39 +144,6 @@ class ArcadeTool(FunctionTool):
         self.requires_auth = requires_auth
         self._arcade_tool_name = arcade_tool_name
         self._fallback_user_id = fallback_user_id
-
-    @override
-    async def run_async(
-        self, *, args: dict[str, Any], tool_context: ToolContext
-    ) -> Any:
-        """Run with full args dict (FunctionTool filters **kwargs away)."""
-        require_confirmation = bool(self._require_confirmation)
-        if require_confirmation:
-            if not tool_context.tool_confirmation:
-                tool_context.request_confirmation(
-                    hint=(
-                        f"Please approve or reject the tool call {self.name}() "
-                        f"({self._arcade_tool_name}) with arguments: {args}"
-                    ),
-                )
-                tool_context.actions.skip_summarization = True
-                return {
-                    "error": (
-                        "This tool call requires confirmation, please approve or"
-                        " reject."
-                    )
-                }
-            if not tool_context.tool_confirmation.confirmed:
-                return {"error": "This tool call is rejected."}
-
-        return await _async_invoke_arcade_tool(
-            tool_context=tool_context,
-            tool_args=args,
-            tool_name=self._arcade_tool_name,
-            requires_auth=self.requires_auth,
-            client=self.client,
-            fallback_user_id=self._fallback_user_id,
-        )
 
     @override
     def _get_declaration(self) -> types.FunctionDeclaration:
