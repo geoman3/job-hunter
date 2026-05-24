@@ -27,6 +27,14 @@ cp .env.example .env
 # Edit .env with your API keys and ARCADE_USER_ID
 ```
 
+| Variable | Description |
+|----------|-------------|
+| `GOOGLE_API_KEY` | Gemini API key for ADK |
+| `ARCADE_API_KEY` | Arcade API key |
+| `ARCADE_USER_ID` | End-user id for Arcade OAuth and tool calls |
+| `JOB_HUNTER_WORKSPACE` | Local workspace directory (default: `workspace`) |
+| `JOB_HUNTER_MODEL` | Optional Gemini model override |
+
 ## Run
 
 ```bash
@@ -63,23 +71,3 @@ workspace/
       research.md
       resume.md
 ```
-
-## Architecture
-
-| Component | Role |
-|-----------|------|
-| `agent.py` | Root ADK agent, instructions, and `App` with resumable HITL |
-| `tools/google_adk_filesystem.py` | `list_files`, `read_file`, `write_file` as `FunctionTool`s with confirmation |
-| `tools/arcade_client.py` | Dynamic `ArcadeTool` wrappers (loads GoogleDrive, GoogleSearch, Firecrawl from Arcade API) |
-| `tools/_arcade_utils.py` | Schema conversion and Arcade client helpers (from `example/`) |
-| `cli/` | Interactive runner loop (uses ADK's `adk_request_confirmation` flow) |
-
-## Environment variables
-
-| Variable | Description |
-|----------|-------------|
-| `GOOGLE_API_KEY` | Gemini API key for ADK |
-| `ARCADE_API_KEY` | Arcade API key |
-| `ARCADE_USER_ID` | End-user id for Arcade OAuth and tool calls |
-| `JOB_HUNTER_WORKSPACE` | Local workspace directory (default: `workspace`) |
-| `JOB_HUNTER_MODEL` | Optional Gemini model override |

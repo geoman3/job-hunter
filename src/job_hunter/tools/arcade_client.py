@@ -14,8 +14,8 @@ from google.adk.tools._automatic_function_calling_util import (
 from google.genai import types
 from typing_extensions import override
 
-from job_hunter.tools._arcade_errors import AuthorizationError, ToolError
-from job_hunter.tools._arcade_utils import (
+from job_hunter.tools.arcade_errors import AuthorizationError, ToolError
+from job_hunter.tools.arcade_utils import (
     fetch_arcade_tool_definitions,
     get_arcade_client,
     tool_definition_to_pydantic_model,

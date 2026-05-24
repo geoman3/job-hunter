@@ -24,7 +24,7 @@ from google.genai import types
 from job_hunter.agent import build_app
 from job_hunter.config import Settings, ensure_workspace
 from job_hunter.tools import ArcadeTool, authorize_arcade_tools, get_arcade_tools
-from job_hunter.tools._arcade_utils import get_arcade_client
+from job_hunter.tools.arcade_utils import get_arcade_client
 
 def _format_event_text(event: Event) -> str | None:
     if not event.content or not event.content.parts:
