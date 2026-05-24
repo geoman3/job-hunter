@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "arcadepy>=1.10.0",
-    "dotenv>=0.9.9",
+    "python-dotenv>=1.0.0",
     "google-adk>=2.1.0",
     "typer>=0.25.1",
 ]
@@ -25,6 +25,8 @@ packages = ["src/job_hunter"]
 [dependency-groups]
 dev = [
     "pre-commit>=4.6.0",
+    "pytest>=9.0.3",
+    "pytest-asyncio>=1.4.0",
     "ruff>=0.15.14",
 ]
 
@@ -36,3 +38,8 @@ src = ["src"]
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+asyncio_mode = "auto"

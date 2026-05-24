@@ -8,7 +8,12 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-load_dotenv()
+
+def _load_dotenv_safe() -> None:
+    try:
+        load_dotenv()
+    except (OSError, PermissionError):
+        pass
 
 
 @dataclass(frozen=True)
@@ -24,6 +29,7 @@ class Settings:
 
     @classmethod
     def from_env(cls, *, workspace_dir: Path | str | None = None) -> Settings:
+        _load_dotenv_safe()
         if workspace_dir is not None:
             workspace = Path(workspace_dir).expanduser()
         else:
