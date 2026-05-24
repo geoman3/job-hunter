@@ -4,7 +4,7 @@ An AI agent that helps you hunt for jobs: it downloads your resume from Google D
 
 Built with:
 
-- **[Google ADK](https://google.github.io/adk-docs/)** — model invocation and workspace `FunctionTool`s (`list_files`, `read_file`, `write_file`)
+- **[Google ADK](https://google.github.io/adk-docs/)** — model invocation and workspace `FunctionTool`s (`list_files`, `read_file`, `write_file`, `decode_file`)
 - **[Arcade](https://arcade.dev)** via **arcadepy** — Google Drive, Google Search, and Firecrawl
 
 Tools and resources used:

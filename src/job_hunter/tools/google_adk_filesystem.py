@@ -7,22 +7,11 @@ from pathlib import Path
 from google.adk.tools.function_tool import FunctionTool
 from google.adk.tools.tool_context import ToolContext
 
-MAX_OUTPUT_CHARS = 100_000
-
-
-def _resolve_path(workspace: Path, path: str) -> Path:
-    """Resolve *path* relative to *workspace*, rejecting path traversal."""
-    root = workspace.resolve()
-    target = (root / path).resolve()
-    if target != root and root not in target.parents:
-        raise ValueError(f"Path escapes workspace: {path}")
-    return target
-
-
-def _truncate(text: str, limit: int = MAX_OUTPUT_CHARS) -> str:
-    if len(text) <= limit:
-        return text
-    return text[:limit] + f"\n... (truncated, {len(text)} total chars)"
+from job_hunter.tools.file_decode import build_decode_file_tool
+from job_hunter.tools.workspace_utils import (
+    resolve_workspace_path,
+    truncate_text,
+)
 
 
 def build_filesystem_tools(workspace_dir: Path) -> list[FunctionTool]:
@@ -41,7 +30,7 @@ def build_filesystem_tools(workspace_dir: Path) -> list[FunctionTool]:
             recursive: If True, list all files recursively; otherwise one level.
         """
         try:
-            target = _resolve_path(workspace, path)
+            target = resolve_workspace_path(workspace, path)
         except ValueError as exc:
             return {"status": "error", "error": str(exc)}
 
@@ -89,7 +78,7 @@ def build_filesystem_tools(workspace_dir: Path) -> list[FunctionTool]:
             end_line: Last line to return, 1-based inclusive (default: end of file).
         """
         try:
-            target = _resolve_path(workspace, path)
+            target = resolve_workspace_path(workspace, path)
         except ValueError as exc:
             return {"status": "error", "error": str(exc)}
 
@@ -128,7 +117,7 @@ def build_filesystem_tools(workspace_dir: Path) -> list[FunctionTool]:
         numbered = "".join(f"{start + i:6d}\t{line}" for i, line in enumerate(selected))
         result: dict = {
             "status": "ok",
-            "content": _truncate(numbered),
+            "content": truncate_text(numbered),
         }
         if start > 1 or end < total:
             result["total_lines"] = total
@@ -146,7 +135,7 @@ def build_filesystem_tools(workspace_dir: Path) -> list[FunctionTool]:
             content: Full file content to write.
         """
         try:
-            target = _resolve_path(workspace, path)
+            target = resolve_workspace_path(workspace, path)
         except ValueError as exc:
             return {"status": "error", "error": str(exc)}
 
@@ -166,4 +155,5 @@ def build_filesystem_tools(workspace_dir: Path) -> list[FunctionTool]:
         FunctionTool(list_files, require_confirmation=False),
         FunctionTool(read_file, require_confirmation=False),
         FunctionTool(write_file, require_confirmation=True),
+        build_decode_file_tool(workspace),
     ]

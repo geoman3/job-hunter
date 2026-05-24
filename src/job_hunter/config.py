@@ -46,5 +46,7 @@ class Settings:
 
 def ensure_workspace(settings: Settings) -> Path:
     """Create the agent workspace directory if needed."""
-    settings.workspace_dir.mkdir(parents=True, exist_ok=True)
-    return settings.workspace_dir
+    root = settings.workspace_dir
+    root.mkdir(parents=True, exist_ok=True)
+    (root / "profile").mkdir(exist_ok=True)
+    return root

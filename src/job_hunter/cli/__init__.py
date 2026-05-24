@@ -30,8 +30,99 @@ from job_hunter.tools.arcade_utils import get_arcade_client
 def _format_event_text(event: Event) -> str | None:
     if not event.content or not event.content.parts:
         return None
-    text_parts = [part.text for part in event.content.parts if part.text]
+    text_parts = [
+        part.text
+        for part in event.content.parts
+        if part.text and not getattr(part, "thought", False)
+    ]
     return "".join(text_parts) if text_parts else None
+
+
+def _tool_response_names(events: list[Event]) -> list[str]:
+    names: list[str] = []
+    for event in events:
+        for response in event.get_function_responses():
+            if response.name:
+                names.append(response.name)
+    return names
+
+
+def _last_tool_response_index(events: list[Event]) -> int | None:
+    last: int | None = None
+    for index, event in enumerate(events):
+        if event.get_function_responses():
+            last = index
+    return last
+
+
+def _agent_text_after_last_tool(events: list[Event]) -> bool:
+    """True if the model produced user-visible text after the last tool result."""
+    last_tool_index = _last_tool_response_index(events)
+    if last_tool_index is None:
+        return False
+    for event in events[last_tool_index + 1 :]:
+        if _format_event_text(event):
+            return True
+    return False
+
+
+def _continuation_nudge(events: list[Event]) -> str | None:
+    """Prompt the agent to continue when a tool chain ends without user-visible text."""
+    if _collect_pending_function_calls(events):
+        return None
+    tool_names = _tool_response_names(events)
+    if not tool_names:
+        return None
+    if _agent_text_after_last_tool(events):
+        return None
+
+    last_tool = tool_names[-1].lower()
+    if "downloadfile" in last_tool:
+        return (
+            "Continue with my job search: save the resume under profile/ with "
+            "write_file if you have not yet, decode it with decode_file, then "
+            "suggest job-search criteria from it and offer to run a search (or run "
+            "GoogleSearch_Search after I approve)."
+        )
+    if last_tool == "decode_file":
+        return (
+            "Continue: read the decoded resume, summarize it if helpful, then "
+            "proceed with job search or the next workflow step."
+        )
+    if "scrape" in last_tool or "firecrawl" in last_tool:
+        return (
+            "Continue: summarize the scrape results for me, save them with "
+            "write_file to the job folder (e.g. research.md or job-description.md) "
+            "if you have not yet, then proceed with the workflow."
+        )
+    if "googlesearch" in last_tool or last_tool.endswith("_search"):
+        return (
+            "Continue: present the job search results (individual posting URLs "
+            "only) and suggest next steps."
+        )
+    if last_tool == "read_file":
+        return (
+            "Continue: use what you read to complete the current workflow step "
+            "(tailor resume, research, or answer my question)."
+        )
+    if last_tool == "write_file":
+        return (
+            "Continue with the next workflow step without waiting for another "
+            "message (e.g. research, job search, or summarize what you saved)."
+        )
+    if last_tool == "list_files":
+        return (
+            "Continue: read the resume or job files you found and proceed with "
+            "the workflow."
+        )
+    return (
+        "Continue the current workflow using the tool results above: tell me "
+        "what you found or did, and take the next step without waiting for "
+        "another prompt."
+    )
+
+
+_MAX_AUTO_CONTINUES = 5
 
 
 def _use_color() -> bool:
@@ -102,6 +193,41 @@ def _echo_agent_message(author: str, text: str) -> None:
     typer.secho(text, fg=typer.colors.BRIGHT_BLUE)
 
 
+def _find_local_resume(workspace: Path) -> Path | None:
+    profile = workspace / "profile"
+    if not profile.is_dir():
+        return None
+    for candidate in sorted(profile.glob("resume.*")):
+        if candidate.is_file():
+            return candidate.relative_to(workspace)
+    return None
+
+
+def _print_startup_guide(workspace: Path) -> None:
+    """Show workflow-oriented prompts before the first user message."""
+    local_resume = _find_local_resume(workspace)
+    typer.echo("What would you like to do? Try one of these:")
+    if local_resume is not None:
+        typer.echo(
+            f'  • Find jobs — "I want to find a job!" (will use {local_resume.as_posix()})'
+        )
+        typer.echo('  • Refresh resume — "Sync my resume from Google Drive"')
+    else:
+        typer.echo('  • Find jobs — "I want to find a job!"')
+        typer.echo(
+            '  • Get resume — "Find my resume in Google Drive and save it locally"'
+        )
+    typer.echo(
+        '  • Tailor for a role — "Tailor my resume for https://example.com/jobs/123"'
+    )
+    typer.echo(
+        '  • Research employer — "Research the company for my Stripe application"'
+    )
+    typer.echo(
+        "Tool calls require approval (type yes to confirm). Type exit to quit.\n"
+    )
+
+
 app = typer.Typer(
     name="job-hunter",
     help="AI agent: download resume, find jobs, tailor resume, research roles.",
@@ -150,8 +276,8 @@ async def _run_interactive(
     elif not session.state.get("user_id"):
         session.state["user_id"] = settings.arcade_user_id
 
-    typer.echo(f"Job Hunter — workspace: {workspace}")
-    typer.echo("Type your request, or 'exit' to quit. Tool calls require approval.\n")
+    typer.echo(f"Job Hunter — workspace: {workspace}\n")
+    _print_startup_guide(workspace)
 
     next_message: types.Content | None = None
     resume_invocation_id: str | None = None
@@ -168,40 +294,55 @@ async def _run_interactive(
                     role="user", parts=[types.Part(text=query)]
                 )
 
-            collected_events = []
-            invocation_id: str | None = None
+            auto_continue_count = 0
 
-            with _AgentSpinner() as spinner:
-                async with Aclosing(
-                    runner.run_async(
-                        user_id=user_id,
-                        session_id=session.id,
-                        new_message=next_message,
-                        invocation_id=resume_invocation_id,
+            while True:
+                collected_events: list[Event] = []
+                invocation_id: str | None = None
+
+                with _AgentSpinner() as spinner:
+                    async with Aclosing(
+                        runner.run_async(
+                            user_id=user_id,
+                            session_id=session.id,
+                            new_message=next_message,
+                            invocation_id=resume_invocation_id,
+                        )
+                    ) as agen:
+                        async for event in agen:
+                            collected_events.append(event)
+                            if getattr(event, "invocation_id", None):
+                                invocation_id = event.invocation_id
+                            spinner.update(event)
+                            text = _format_event_text(event)
+                            if text:
+                                spinner.pause()
+                                _echo_agent_message(event.author or "agent", text)
+                                spinner.resume()
+
+                pending = _collect_pending_function_calls(collected_events)
+                if pending:
+                    parts = []
+                    for fc_id, fc_name, args in pending:
+                        response = _prompt_for_function_call(fc_id, fc_name, args)
+                        parts.extend(response.parts)
+                    next_message = types.Content(role="user", parts=parts)
+                    resume_invocation_id = invocation_id
+                    continue
+
+                nudge = _continuation_nudge(collected_events)
+                if nudge and auto_continue_count < _MAX_AUTO_CONTINUES:
+                    next_message = types.Content(
+                        role="user", parts=[types.Part(text=nudge)]
                     )
-                ) as agen:
-                    async for event in agen:
-                        collected_events.append(event)
-                        if getattr(event, "invocation_id", None):
-                            invocation_id = event.invocation_id
-                        spinner.update(event)
-                        text = _format_event_text(event)
-                        if text:
-                            spinner.pause()
-                            _echo_agent_message(event.author or "agent", text)
-                            spinner.resume()
+                    resume_invocation_id = None
+                    auto_continue_count += 1
+                    continue
+
+                break
 
             next_message = None
             resume_invocation_id = None
-
-            pending = _collect_pending_function_calls(collected_events)
-            if pending:
-                parts = []
-                for fc_id, fc_name, args in pending:
-                    response = _prompt_for_function_call(fc_id, fc_name, args)
-                    parts.extend(response.parts)
-                next_message = types.Content(role="user", parts=parts)
-                resume_invocation_id = invocation_id
     finally:
         await runner.close()
 
