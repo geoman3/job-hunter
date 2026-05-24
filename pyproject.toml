@@ -1,7 +1,7 @@
 [project]
 name = "job-hunter"
 version = "0.1.0"
-description = "Add your description here"
+description = "AI job hunting agent with Google ADK and Arcade tools"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
